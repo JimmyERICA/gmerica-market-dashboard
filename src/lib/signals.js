@@ -1,5 +1,5 @@
-import { prefetchQuotes, getQuote } from './finnhub'
-import { fetchVolComplex } from './vol'
+import { prefetchQuotes, getQuote } from './finnhub.js'
+import { fetchVolComplex } from './vol.js'
 
 export const SIGNAL_DEFS = [
   { id: 'breadth', label: 'Breadth / Leadership', numerator: 'RSP', denominator: 'SPY', description: 'Equal-weight vs cap-weight S&P 500. Rising ratio means broad participation — bullish.', neutralBand: 0.005, doubleWeight: true },

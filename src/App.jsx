@@ -45,6 +45,11 @@ export default function App() {
       .then(data => { setVolData(data); setVolLoading(false) })
       .catch(err => { setVolError(err.message); setVolLoading(false) })
 
+    // Synthesis is pre-generated daily and served as a static file
+    fetchSynthesis()
+      .then(data => { setSynthesis(data); setSynthesisLoading(false) })
+      .catch(err => { setSynthesisError(err.message); setSynthesisLoading(false) })
+
     try {
       // Fetch Granville and Macro in parallel
       const [granvilleResult, macroResult] = await Promise.all([
@@ -63,20 +68,6 @@ export default function App() {
       setMacroVol(macroResult.volAndRisk)
       setMacroRates(macroResult.ratesAndCredit)
       setLastUpdated(new Date())
-
-      // Fire AI synthesis after data is loaded (non-blocking for the main UI)
-      fetchSynthesis(
-        { signals: granvilleResult.signals, compositeScore: granvilleResult.compositeScore, divergenceWarning: granvilleResult.divergenceWarning },
-        macroResult
-      )
-        .then(text => {
-          setSynthesis(text)
-          setSynthesisLoading(false)
-        })
-        .catch(err => {
-          setSynthesisError(err.message)
-          setSynthesisLoading(false)
-        })
     } catch (err) {
       setError(err.message)
       setLoading(false)
@@ -102,9 +93,10 @@ export default function App() {
           </div>
         )}
 
-        {/* Section 1 — AI Synthesis */}
+        {/* Section 1 — AI Synthesis (pre-generated daily, static file) */}
         <SynthesisPanel
-          text={synthesis}
+          text={synthesis?.paragraph}
+          generatedAt={synthesis?.generatedAt}
           loading={synthesisLoading}
           error={synthesisError}
         />

@@ -1,0 +1,6 @@
+{
+  "paragraph": "The Granville composite issues a clear bearish verdict this morning with a weak score of 31 out of 100, severely constrained by an active divergence warning as the rising SPY index decouples from a falling RSP/SPY breadth ratio. This underlying decay is confirmed by Granville's core sub-signals, most notably a sharp bearish shift into defensives with the XLP/XLY ratio rising +0.77%, alongside significant performance drags in high-beta risk appetite (-0.57%) and economically sensitive transports (-0.50%). On the macro front, stable credit conditions—anchored by high-yield spreads holding at 2.70% and 10-year real yields steady at 2.31%—are ultimately overshadowed by persistent small-cap underperformance at a ratio of 0.3921 and a flat dollar at $28.39. Consequently, our directional lean for today's session is strictly defensive to bearish, as deteriorating market breadth and defensive rotation suggest index-level strength is highly vulnerable to exhaustion.",
+  "compositeScore": 31,
+  "model": "gemini-flash-latest",
+  "generatedAt": "2026-07-11T21:45:53.000Z"
+}

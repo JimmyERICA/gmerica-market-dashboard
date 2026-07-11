@@ -78,9 +78,6 @@ const server = http.createServer(async (nodeReq, nodeRes) => {
     } else if (url.pathname === '/api/tradier') {
       const { default: handler } = await import(`./api/tradier.js?t=${Date.now()}`)
       await handler(req, res)
-    } else if (url.pathname === '/api/synthesis') {
-      const { default: handler } = await import(`./api/synthesis.js?t=${Date.now()}`)
-      await handler(req, res)
     } else {
       res.status(404).json({ error: 'not found' })
     }

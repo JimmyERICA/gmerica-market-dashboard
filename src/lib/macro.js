@@ -1,6 +1,6 @@
-import { prefetchQuotes, getQuote } from './finnhub'
-import { fetchVolComplex } from './vol'
-import { fetchMacroSignals as fetchFredSignals } from './fred'
+import { prefetchQuotes, getQuote } from './finnhub.js'
+import { fetchVolComplex } from './vol.js'
+import { fetchMacroSignals as fetchFredSignals } from './fred.js'
 
 function vixLevelState(price) {
   if (price < 15) return 'Complacent'

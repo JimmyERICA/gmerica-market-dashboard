@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:api": "node local-api-server.mjs",
+    "generate:synthesis": "node scripts/generate-synthesis.mjs",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
