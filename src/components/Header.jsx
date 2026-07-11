@@ -12,10 +12,10 @@ export default function Header({ lastUpdated, onRefresh, loading }) {
     <header className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950">
       <div>
         <h1 className="text-xl font-bold tracking-tight text-white">
-          Granville Market Dashboard
+          GMERICA Market Dashboard
         </h1>
         <p className="text-xs text-slate-500 mt-0.5">
-          Granville's 1960 timing system · ETF ratio signals
+          Powered by Granville's 1960 timing system · ETF ratio signals
         </p>
       </div>
 
