@@ -6,7 +6,7 @@ export const SIGNAL_DEFS = [
   { id: 'defensive', label: 'Defensive Rotation', numerator: 'XLP', denominator: 'XLY', description: 'Staples vs discretionary. Falling ratio means investors prefer risk — bullish.', neutralBand: 0.005, inverted: true },
   { id: 'credit', label: 'Credit Confidence', numerator: 'HYG', denominator: 'LQD', description: 'High-yield vs investment-grade bonds. Rising ratio signals credit risk appetite — bullish.', neutralBand: 0.005 },
   { id: 'bellwether', label: 'Bellwether Semis', numerator: 'SOXX', denominator: 'SPY', description: 'Semiconductors vs broad market. Semis lead economic cycles — outperformance is bullish.', neutralBand: 0.005 },
-  { id: 'volatility', label: 'Volatility', numerator: 'VIX', denominator: null, description: 'CBOE VIX index (real, via Tradier). Below 17 is calm/bullish. Above 25 signals fear — bearish.', isAbsolute: true, absoluteBull: 17, absoluteBear: 25, neutralBand: 0.005, inverted: true },
+  { id: 'volatility', label: 'Volatility', numerator: 'VIX', denominator: null, description: 'CBOE VIX index. Below 17 is calm/bullish. Above 25 signals fear — bearish.', isAbsolute: true, absoluteBull: 17, absoluteBear: 25, neutralBand: 0.005, inverted: true },
   { id: 'riskAppetite', label: 'Risk Appetite', numerator: 'SPHB', denominator: 'SPLV', description: 'High-beta vs low-volatility stocks. Rising ratio means investors are chasing risk — bullish.', neutralBand: 0.005 },
   { id: 'transport', label: 'Transport / Economy', numerator: 'IYT', denominator: 'SPY', description: 'Transports vs broad market. Dow Theory: transport outperformance confirms economic health.', neutralBand: 0.003 },
 ]

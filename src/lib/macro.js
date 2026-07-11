@@ -32,7 +32,7 @@ export async function fetchAllMacroSignals() {
       id: 'vixLevel', label: 'VIX Level', ticker: 'VIX (CBOE)', value: vix.price,
       formatted: fmt(vix.price), pctChange: vix.pctChange, state,
       meaning: `VIX at ${fmt(vix.price)} (${sign(vix.pctChange)}${fmt(vix.pctChange)}% today). ${state === 'Fear' ? 'Fear regime — elevated hedging demand.' : state === 'Elevated' ? 'Vol elevated — market pricing near-term uncertainty.' : 'Vol contained — calm market backdrop.'}`,
-      source: 'Tradier',
+      source: 'CBOE',
     })
   } else { volAndRisk.push({ id: 'vixLevel', label: 'VIX Level', ticker: 'VIX', error: 'unavailable', source: 'Tradier' }) }
 
@@ -45,7 +45,7 @@ export async function fetchAllMacroSignals() {
       id: 'volTermStructure', label: 'Vol Term Structure', ticker: 'VIX1D→9D→VIX→3M', value: ratio,
       formatted: curve, pctChange: null, state,
       meaning: `VIX/VIX3M ratio ${ratio.toFixed(3)}. ${state === 'Backwardation' ? 'Near-term vol above 3-month — classic stress signal.' : state === 'Steep Contango' ? 'Steep contango — market very calm, vol sellers in control.' : 'Normal contango — orderly market.'}`,
-      source: 'Tradier',
+      source: 'CBOE',
     })
   } else { volAndRisk.push({ id: 'volTermStructure', label: 'Vol Term Structure', ticker: 'VIX/VIX3M', error: 'unavailable', source: 'Tradier' }) }
 
@@ -57,7 +57,7 @@ export async function fetchAllMacroSignals() {
       id: 'volSkew', label: 'Vol Skew (1D vs 30D)', ticker: 'VIX1D − VIX', value: spread,
       formatted: `${sign(spread)}${fmt(spread, 1)} pts`, pctChange: null, state,
       meaning: `VIX1D ${fmt(vix1d.price, 1)} vs VIX ${fmt(vix.price, 1)}. ${state === 'Front-loaded Fear' ? '1-day vol above 30-day — immediate event risk being priced (rare outside event eves).' : state === 'Back-loaded' ? '1-day vol deeply below 30-day — no event risk today, uncertainty further out.' : 'Front of curve in line with 30-day.'}`,
-      source: 'Tradier',
+      source: 'CBOE',
     })
   } else { volAndRisk.push({ id: 'volSkew', label: 'Vol Skew (1D vs 30D)', ticker: 'VIX1D − VIX', error: 'unavailable', source: 'Tradier' }) }
 
@@ -70,7 +70,7 @@ export async function fetchAllMacroSignals() {
       id: 'bondVol', label: 'Bond Vol (MOVE proxy)', ticker: 'TLT ~30d ATM IV', value: ivPct,
       formatted: `${fmt(ivPct, 1)}%`, pctChange: null, state,
       meaning: `TLT ${tlt.expiration} ATM implied vol at ${fmt(ivPct, 1)}%. ${state === 'Elevated' ? 'Elevated bond vol — rates market unsettled, typically risk-off for equities.' : state === 'Neutral' ? 'Bond vol mid-range.' : 'Bond vol subdued — rates market quiet.'}`,
-      source: 'Tradier',
+      source: 'CBOE',
     })
   } else { volAndRisk.push({ id: 'bondVol', label: 'Bond Vol (MOVE proxy)', ticker: 'TLT ATM IV', error: 'unavailable', source: 'Tradier' }) }
 
