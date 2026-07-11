@@ -2,15 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { fetchAllSignals, getMarketPhase } from './lib/signals'
 import { fetchAllMacroSignals } from './lib/macro'
 import { fetchSynthesis } from './lib/synthesis'
-import { fetchAlmaData } from './lib/alma'
-import AlmaPanel from './components/AlmaPanel'
-import AlmaLog from './components/AlmaLog'
 import VolSurfacePanel from './components/VolSurfacePanel'
 import { fetchVolSurface } from './lib/volsurface'
-
-import LoginGate from './components/LoginGate'
-
-const SHOW_ALMA = import.meta.env.VITE_SHOW_ALMA === 'true'
 import Header from './components/Header'
 import ScoreGauge from './components/ScoreGauge'
 import SignalCard from './components/SignalCard'
@@ -19,10 +12,6 @@ import MacroCard from './components/MacroCard'
 import SynthesisPanel from './components/SynthesisPanel'
 
 export default function App() {
-  // /login is served by the same SPA bundle; the edge middleware allows it
-  // through and redirects unauthenticated visitors here (private project only).
-  if (window.location.pathname === '/login') return <LoginGate />
-
   const [signals, setSignals] = useState([])
   const [compositeScore, setCompositeScore] = useState(null)
   const [prevScore, setPrevScore] = useState(null)
@@ -38,10 +27,6 @@ export default function App() {
   const [volData, setVolData] = useState(null)
   const [volLoading, setVolLoading] = useState(false)
   const [volError, setVolError] = useState(null)
-
-  const [almaData, setAlmaData] = useState(null)
-  const [almaLoading, setAlmaLoading] = useState(false)
-  const [almaError, setAlmaError] = useState(null)
 
   const [loading, setLoading] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(null)
@@ -59,15 +44,6 @@ export default function App() {
     fetchVolSurface()
       .then(data => { setVolData(data); setVolLoading(false) })
       .catch(err => { setVolError(err.message); setVolLoading(false) })
-
-    // Alma fetch runs in parallel, independent of the main flow
-    if (SHOW_ALMA) {
-      setAlmaLoading(true)
-      setAlmaError(null)
-      fetchAlmaData()
-        .then(data => { setAlmaData(data); setAlmaLoading(false) })
-        .catch(err => { setAlmaError(err.message); setAlmaLoading(false) })
-    }
 
     try {
       // Fetch Granville and Macro in parallel
@@ -214,19 +190,6 @@ export default function App() {
           </h2>
           <VolSurfacePanel data={volData} loading={volLoading} error={volError} />
         </section>
-
-        {/* Section 5 — Alma Centroid (private dashboard only) */}
-        {SHOW_ALMA && (
-          <section>
-            <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">
-              Alma Centroid
-            </h2>
-            <AlmaPanel data={almaData} loading={almaLoading} error={almaError} />
-          </section>
-        )}
-
-        {/* Alma Signal Log — level touches, end-of-day */}
-        {SHOW_ALMA && almaData && <AlmaLog data={almaData} />}
 
         <p className="text-xs text-slate-600 text-center pb-4">
           Cross-validate at stockcharts.com · finviz.com · Data: Finnhub + FRED · Based on Granville's 1960 timing system

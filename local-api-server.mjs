@@ -72,17 +72,11 @@ const server = http.createServer(async (nodeReq, nodeRes) => {
     } else if (url.pathname === '/api/fred') {
       const { default: handler } = await import(`./api/fred.js?t=${Date.now()}`)
       await handler(req, res)
-    } else if (url.pathname === '/api/snapshot') {
-      const { default: handler } = await import(`./api/snapshot.js?t=${Date.now()}`)
-      await handler(req, res)
     } else if (url.pathname === '/api/vol') {
       const { default: handler } = await import(`./api/vol.js?t=${Date.now()}`)
       await handler(req, res)
     } else if (url.pathname === '/api/tradier') {
       const { default: handler } = await import(`./api/tradier.js?t=${Date.now()}`)
-      await handler(req, res)
-    } else if (url.pathname === '/api/alma') {
-      const { default: handler } = await import(`./api/alma.js?t=${Date.now()}`)
       await handler(req, res)
     } else if (url.pathname === '/api/synthesis') {
       const { default: handler } = await import(`./api/synthesis.js?t=${Date.now()}`)
