@@ -18,6 +18,13 @@ jobs:
         with:
           node-version: 24
 
+      - name: Debug secret fingerprint (temporary)
+        run: |
+          printf 'GEMINI_KEY length: '; printf '%s' "$GEMINI_KEY" | wc -c
+          printf 'GEMINI_KEY sha256 prefix: '; printf '%s' "$GEMINI_KEY" | sha256sum | cut -c1-12
+        env:
+          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
+
       - name: Generate synthesis
         run: node scripts/generate-synthesis.mjs
         env:
