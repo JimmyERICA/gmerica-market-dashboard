@@ -18,16 +18,6 @@ jobs:
         with:
           node-version: 24
 
-      - name: Debug secret fingerprint (temporary)
-        run: |
-          printf 'FINNHUB_KEY length (expect 40): '; printf '%s' "$FINNHUB_KEY" | wc -c
-          printf 'FRED_KEY length (expect 32): '; printf '%s' "$FRED_KEY" | wc -c
-          printf 'GEMINI_KEY length (expect 53): '; printf '%s' "$GEMINI_KEY" | wc -c
-        env:
-          FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
-          FRED_KEY: ${{ secrets.FRED_KEY }}
-          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
-
       - name: Generate synthesis
         run: node scripts/generate-synthesis.mjs
         env:
