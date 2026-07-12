@@ -1,296 +1,109 @@
-# Granville Market Dashboard — Project Reference
+# GMERICA Market Dashboard — Project Reference
 
 ## Overview
-Pre-market trading dashboard based on Granville's 1960 timing system. React + Vite + Tailwind v4. Deployed on Vercel. Ongoing project.
+Pre-market trading dashboard based on Joseph Granville's 1960 timing system.
+React + Vite + Tailwind v4, deployed on Vercel. This is a fork of
+`jusjit/granville-market-dashboard` (the owner is a friend who blessed the fork);
+all of the original author's private infrastructure (Supabase, Alma email
+pipeline, geo-regime aggregator, password gate) has been **removed** — do not
+look for it.
+
+- **Live site**: https://gmerica-market-dashboard.vercel.app/
+- **Repo**: https://github.com/JimmyERICA/gmerica-market-dashboard (public, `main` auto-deploys to Vercel)
+- **Owner**: GitHub user JimmyERICA — a beginner; explain steps plainly, and when
+  they must copy/paste a value, spell out exactly what it starts/ends with
+  (they once pasted whole `KEY=value` lines into GitHub secret fields).
+- Commits use the noreply email `302634369+JimmyERICA@users.noreply.github.com`
+  (set in repo-local git config; do not switch back to a personal email).
 
 ## Tech Stack
-- **Frontend**: React 19, Vite 8, Tailwind CSS v4 (`@tailwindcss/vite`), Recharts, Lucide React
-- **Deployment**: Vercel (auto-deploys from `main` branch of `jusjit/granville-market-dashboard`)
-- **Local dev**: Two processes required (see below)
+- React 19, Vite 8, Tailwind CSS v4 (`@tailwindcss/vite`), Recharts, Lucide React
+- Vercel serverless functions in `api/` (Node), GitHub Actions for the daily AI synthesis
+- No database. No Supabase. The only persisted artifact is `public/synthesis.json`.
 
-## Local Dev Setup
-Two servers must run simultaneously:
+## Local Dev
+Two processes:
 
 ```
-# Terminal 1 — API functions (port 3001)
-npm run dev:api        # runs: node local-api-server.mjs
-
-# Terminal 2 — Vite frontend (port 5173)
-npm run dev            # runs: vite
+npm run dev:api        # api/* handlers on port 3001 (reads .env)
+npm run dev            # Vite on port 5173, proxies /api/* to 3001
 ```
 
-Open **http://localhost:5173**. Vite proxies `/api/*` to port 3001 via `vite.config.js`.
-
-**Do NOT use `vercel dev`** — it fights with Vite on Windows and serves blank pages.
-
-`local-api-server.mjs` reads `.env` and maps `VITE_*` keys to plain keys for server-side use.
+Do NOT use `vercel dev` (broken on Windows with Vite).
+`local-api-server.mjs` loads `.env` and maps `VITE_*` keys to plain names.
 
 ## Environment Variables
 
-### `.env` (local, never committed — see file for actual values)
-`VITE_FINNHUB_KEY`, `VITE_FRED_KEY`, `VITE_1MIN_KEY` (VITE_* mapped to plain names by local-api-server), `VITE_SHOW_ALMA=true`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TRADIER_KEY`, `INGEST_SECRET`
+### `.env` (local, gitignored — never commit)
+- `VITE_FINNHUB_KEY` — Finnhub free tier (ETF quotes)
+- `VITE_FRED_KEY` — FRED API (macro series)
+- `GEMINI_KEY` — Google Gemini free tier, new `AQ.`-prefix key format (daily synthesis)
+- `TRADIER_KEY` — NOT set. Optional future upgrade (see Vol section).
 
-### Vercel (TWO projects from the same repo/branch)
-- **granville-market-dashboard** — PUBLIC. Shows Synthesis + Granville + Macro + Vol Surface.
-- **private-market-dashboard** — PRIVATE (Vercel Authentication enabled). Same + Alma panels via `VITE_SHOW_ALMA=true`.
+### GitHub repo secrets (Settings → Secrets → Actions)
+`FINNHUB_KEY`, `FRED_KEY`, `GEMINI_KEY` — used only by the daily-synthesis workflow.
 
-Env vars on BOTH (no VITE_ prefix — server-side only): `FINNHUB_KEY`, `FRED_KEY`, `ONEMIN_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TRADIER_KEY`, `INGEST_SECRET`.
-Private project ONLY: `VITE_SHOW_ALMA=true` (its absence hides Alma on public).
+### Vercel project env vars
+`FINNHUB_KEY`, `FRED_KEY` — used by the serverless functions. Gemini is NOT
+needed on Vercel (synthesis is pre-generated, see below).
 
-**Planned**: `VITE_SHOW_GEO_REGIME=true`, private project only, same on/off pattern as
-`VITE_SHOW_ALMA` — for the not-yet-shipped Geo Regime tab (see "Geo Regime Panel (WIP)" below).
-Not set anywhere yet; the panel isn't wired into `App.jsx` so the flag would currently do nothing.
+## Daily AI Synthesis (replaces the original's 1min.ai/Supabase design)
+- `scripts/generate-synthesis.mjs` recomputes the Granville + macro signals
+  server-side (it patches `globalThis.fetch` to route the client libs'
+  relative `/api/*` calls to the handlers in-process), builds the prompt,
+  calls Gemini (`gemini-flash-latest` via `generativelanguage.googleapis.com`,
+  header `x-goog-api-key`), and writes `public/synthesis.json`.
+- `.github/workflows/daily-synthesis.yml` runs it weekdays 13:15 UTC
+  (9:15am ET in summer; ⚠ 8:15am EST after the November DST change — shift the
+  cron to 14:15 UTC in winter if the timing matters) and commits the JSON with
+  the github-actions bot. That commit auto-triggers a Vercel redeploy.
+- The frontend (`src/lib/synthesis.js`) just fetches `/synthesis.json` — no AI
+  call ever happens on page load. `SynthesisPanel` shows the generatedAt time.
+- Local manual run: `npm run generate:synthesis`.
 
-## Supabase (project "LalliChaths", https://oteatsbkdamvczdceion.supabase.co)
-Tables: `intraday_posts` (Alma daily levels), `weekly_posts`, `market_data` (SPX/VIX OHLC + gaps), `rules` (16 backtested rules with confidence tiers).
-- RLS enabled, no policies — only service role key reads/writes.
-- `intraday_posts`/`weekly_posts`: unique constraint on `date`, identity ids (for webhook upserts).
-- Original data migrated from SQLite (`Alma backtest rules/` folder, gitignored).
+## API Routes (`api/*.js` — Vercel serverless)
+- `api/finnhub.js` — GET `?symbols=RSP,SPY,...` → `[{symbol, price, prevClose, pctChange}]`. Finnhub free tier: ETFs only, no CBOE indices.
+- `api/fred.js` — GET `?series=BAMLH0A0HYM2,...` → FRED observations (CORS-blocked from browsers, hence the proxy).
+- `api/vol.js` — vol complex. **Two modes**: with `TRADIER_KEY` it uses Tradier
+  (real-time CBOE indices + TLT ATM IV); without it (current state) it falls
+  back to Yahoo Finance's public chart endpoint
+  (`query1.finance.yahoo.com/v8/finance/chart/^VIX?interval=1d&range=1mo`,
+  needs a browser User-Agent, `range=1mo` because short ranges return only one
+  close for some indices). Yahoo mode returns `tltIV: null` (options data not
+  freely available), so the Bond Vol tile shows "unavailable" — that is
+  expected, not a bug.
+- `api/tradier.js` — SPX options vol surface. Requires `TRADIER_KEY`; the Vol
+  Surface panel intentionally shows "unavailable" without it. Owner declined
+  Tradier signup (asks for SSN). If a key ever appears, everything upgrades
+  with no code changes.
 
-## API Routes (`/api/*.js` — Vercel serverless functions)
+## Dashboard Sections (top to bottom)
+1. AI Synthesis (static `synthesis.json`, Gemini, daily)
+2. Granville Composite gauge (0–100) + divergence warning
+3. 7 Granville signal cards + Signal Log
+4. Macro Conditions (vol/dollar/risk tiles + FRED rates & credit)
+5. Vol Surface (Tradier-only, currently "unavailable")
 
-### `api/finnhub.js`
-- GET `/api/finnhub?symbols=RSP,SPY,...`
-- Fetches ETF quotes from Finnhub (free tier — ETF/stocks only, no CBOE indices)
-- Returns: `[{ symbol, price, prevClose, pctChange }]`
-- Cache-Control: `s-maxage=60, stale-while-revalidate=30`
+## Granville Scoring (src/lib/signals.js)
+- 7 signals; ratio vs prior close, ±0.5% neutral band (transport ±0.3%);
+  Bull=20 / Neutral=10 / Bear=0; breadth (RSP/SPY) double-weighted (40/20/0).
+- `MAX_RAW = 160`; composite = round(raw/160×100).
+- Volatility signal is absolute VIX level: ≤17 bull, ≥25 bear.
+- Divergence rule: SPY up while RSP/SPY down → composite capped at 60.
+- Phases: ≥67 Bull 1/2/3, ≤33 Bear 1/2/3 (by delta), else Transitional.
+- NOTE: `src/lib/*.js` imports use explicit `.js` extensions so plain Node
+  (the synthesis script) can import them — keep it that way.
 
-### `api/fred.js`
-- GET `/api/fred?series=BAMLH0A0HYM2,DFII10,...`
-- Fetches FRED economic data server-side (CORS blocked from browser)
-- Returns: `[{ id, observations: [{date, value}] }]`
-- Cache-Control: `s-maxage=3600, stale-while-revalidate=600`
+## Known Gotchas
+- Finnhub free tier: no `^VIX`/CBOE indices, no MOVE. ETF proxies only.
+- FRED cannot be called from the browser (CORS) — always via `/api/fred`.
+- Yahoo chart endpoint is unofficial: stable for years but could break; the
+  VIX tiles/signal then degrade to "unavailable" until the source is swapped.
+- Node.js LTS was installed via winget on this machine (2026-07-11); shells
+  started before an installation may need PATH refreshed
+  (`[System.Environment]::GetEnvironmentVariable("PATH","Machine")`).
 
-### `api/synthesis.js`
-- POST `/api/synthesis` with body `{ granvilleData, macroData }`
-- Calls **1min.ai** to generate AI paragraph via Claude
-- **Model**: `claude-sonnet-4-6`
-- **Format**: `{ type: "CHAT", model: "claude-sonnet-4-6", promptObject: { prompt, isMixed: false } }`
-- **Endpoint**: `https://api.1min.ai/api/chat-with-ai` with header `API-KEY: <key>`
-- Response path: `data.aiRecord.aiRecordDetail.resultObject[0]`
-- In-memory cache: 20-min TTL, invalidated on signal state change (hash-based)
-
-### CRITICAL: 1min.ai API format
-`messages: [{role, content}]` format → **REJECTED** (PROMPT_OBJECT_VALIDATION_FAILED)
-`promptObject: { prompt, isMixed: false }` format → **WORKS**
-
-### `api/alma.js`
-- GET — latest `intraday_posts` + `weekly_posts` + `market_data` rows + all rules from Supabase
-- Evaluates the 16 rules with explicit per-rule_id JS (no eval); returns `{ intraday, weekly, market, activeRules }`
-- `s-maxage=300`. Feeds AlmaPanel + AlmaLog (private dashboard only).
-
-### `api/tradier.js` (vol surface)
-- SPX options chains via Tradier (ORATS greeks): first 4 dailies + Fridays to 60d (max 12 expiries)
-- ATM IV per expiry, forward IV `FIV=√((IV₂²T₂−IV₁²T₁)/(T₂−T₁))`, kink = >15% above neighbor interpolation, confirmed = spot IV ≥ 90% of forward. `s-maxage=120`.
-
-### `api/vol.js` (vol complex — shared by Granville volatility signal + macro panel)
-- Real CBOE indices via Tradier quotes: VIX1D, VIX9D, VIX, VIX3M
-- TLT ~30d ATM IV (live MOVE proxy), USD/JPY via frankfurter.app (ECB daily, no key)
-- Client cache: `src/lib/vol.js` `fetchVolComplex()` dedupes in-flight calls. `s-maxage=120`.
-
-### `api/ingest-alma.py` (Python runtime — Alma post webhook)
-- POST `{ html, subject }` with header `X-Ingest-Secret: <INGEST_SECRET>`
-- Parser functions ported UNCHANGED from `Desktop/Alma Backtesting/alma_pipeline_final.py`
-- classify by subject (weekly/week → weekly), date from `post-date` meta tag, Supabase upsert on date
-- Gmail Apps Script fires this on new Alma emails. Returns `warnings` when key fields fail to extract → indicates a new vocabulary gap needing regex work.
-- `requirements.txt` (repo root): beautifulsoup4
-
-### `api/snapshot.js` (twice-daily snapshots)
-- GET `?type=premarket|close`, auth `Authorization: Bearer <SNAPSHOT_SECRET>`
-- Recomputes Granville+macro server-side, upserts `dashboard_snapshots` on (date,snapshot_time)
-- On close: upserts SPX/VIX OHLC+gaps into `market_data` — GUARDED by Tradier trade_date == today (NY) so closed-market runs can't write stale data
-- Trigger: `.github/workflows/dashboard-snapshot.yml` — 13:25/21:05 UTC weekdays (9:25am/5:05pm EDT). ⚠️ DST: after Nov 1 2026 change crons to 14:25/22:05 UTC. GH repo secret: SNAPSHOT_SECRET.
-
-### `api/login.js` + `middleware.js` (private dashboard password gate)
-- Edge middleware at repo root; enforces ONLY when `DASHBOARD_PASSWORD` env is set (private project). Public project unaffected.
-- Cookie `dashboard_auth` = SHA-256(password), 30 days. Login page: `/login` (LoginGate.jsx in the SPA).
-- Excluded paths: /login, /api/login, /api/snapshot, /api/ingest-alma (own secrets), /assets, favicon.
-
-### Synthesis cache
-- Persistent in Supabase `synthesis_cache` (single row id=1), 2h TTL + input-hash invalidation. Survives cold starts; ~4-6 1min.ai calls/day.
-
-### Gmail Apps Script ("Alma Email Ingester")
-- `checkForNewAlmaPosts` polls every 15 min (time-driven trigger — verify it exists in Triggers panel!)
-- Searches `from:stochvoltrader+market-analysis@substack.com -label:alma-processed newer_than:7d`
-- Labels thread only on HTTP 200; failures retry next cycle. Errors visible in Executions log.
-
-### Tradier notes
-- Production key, `api.tradier.com`. Real indices work: SPX, VIX, VIX1D, VIX9D, VIX3M. NOT available: MOVE (symbol = Corvex Inc stock!), USDJPY, DXY — no forex.
-
-## Dashboard Sections (in order)
-1. **AI Synthesis** — indigo panel, claude-sonnet-4-6 via 1min.ai, updates on refresh
-2. **Granville Composite** — Recharts half-circle gauge (0–100)
-3. **7 Granville Signal Cards** — green/yellow/red
-4. **Macro Conditions** — slate cards, descriptive only (not scored)
-5. **Alma Centroid** — placeholder ("coming soon")
-6. **Signal Log** — plain-English bullet log
-7. **Geo Regime** — PLANNED, private dashboard only. Not yet in this list for real —
-   see "Geo Regime Panel (WIP)" below for status/location before assuming it renders.
-
-## Granville Scoring System
-
-### Signal Definitions (`src/lib/signals.js`)
-| ID | Label | Numerator | Denominator | Notes |
-|----|-------|-----------|-------------|-------|
-| breadth | Breadth/Leadership | RSP | SPY | Double-weight (40/20/0), neutral band ±0.5% |
-| defensive | Defensive Rotation | XLP | XLY | Inverted, ±0.5% |
-| credit | Credit Confidence | HYG | LQD | ±0.5% |
-| bellwether | Bellwether Semis | SOXX | SPY | ±0.5% |
-| volatility | Volatility Proxy | VIXY | — | Absolute: ≤$17 bull, ≥$25 bear; inverted |
-| riskAppetite | Risk Appetite | SPHB | SPLV | ±0.5% |
-| transport | Transport/Economy | IYT | SPY | ±0.3% neutral band |
-
-### Scoring Rules
-- `MAX_RAW = 160` (6×20 + 40 for double-weight breadth)
-- Each signal: Bull=20, Neutral=10, Bear=0 (breadth: Bull=40, Neutral=20, Bear=0)
-- `compositeScore = round((rawTotal / 160) * 100)`
-- **Divergence penalty**: SPY rising AND RSP/SPY falling → cap composite at 60
-- `displayScore` always shown as /20 (normalized)
-
-### Market Phases
-- ≥67: Bull Phase 1/2/3 (based on delta)
-- ≤33: Bear Phase 1/2/3
-- 33–67: Transitional
-
-## Macro Signals (`src/lib/macro.js`)
-Fetches: `VIXY, VIXM, UUP, IWM, SPY` from Finnhub + FRED data
-
-| Signal | Source | Notes |
-|--------|--------|-------|
-| Vol Level | VIXY | <15 Complacent, <20 Calm, <28 Elevated, ≥28 Fear |
-| Vol Term Structure | VIXY/VIXM ratio | >1.02 Backwardation, <0.98 Contango |
-| Vol Skew | VIXY Δ vs VIXM Δ | >1% diff = Front-loaded Fear |
-| MOVE Index | Static tile | Manual check — Finnhub free tier blocks it |
-| Dollar Strength | UUP | ±0.3% threshold |
-| Small vs Large Cap | IWM/SPY | ±0.3% threshold |
-| HY Spread | FRED: BAMLH0A0HYM2 | |
-| Real Yield | FRED: DFII10 | |
-| Inflation Fwd | FRED: T5YIE | |
-| Breakeven | FRED: DGS10 − DFII10 | |
-
-**Note**: Finnhub free tier blocks `^VIX`, `CBOE:VIX`. Use ETF proxies: VIXY ≈ VIX, VIXM ≈ VIX3M.
-
-## Key Source Files
-```
-src/
-  App.jsx                  # orchestrates fetches, renders all sections
-  lib/
-    finnhub.js             # prefetchQuotes() / getQuote() — client-side cache
-    fred.js                # fetches FRED via /api/fred, computes spreads
-    signals.js             # SIGNAL_DEFS, fetchAllSignals(), scoring logic
-    macro.js               # fetchAllMacroSignals()
-    synthesis.js           # fetchSynthesis() — POST to /api/synthesis
-  components/
-    ScoreGauge.jsx         # Recharts half-circle, divergence warning banner
-    SignalCard.jsx         # green/yellow/red, "2× weight" badge for breadth
-    MacroCard.jsx          # slate cards, dashed border for staticTile
-    SynthesisPanel.jsx     # indigo panel, loading/error/paragraph states
-    SignalLog.jsx          # plain-English bullet log, direction arrows
-api/
-  finnhub.js               # serverless — Finnhub proxy
-  fred.js                  # serverless — FRED proxy
-  synthesis.js             # serverless — 1min.ai proxy
-local-api-server.mjs       # local dev only — runs api/* as HTTP server on :3001
-```
-
-## Data Flow
-```
-App.jsx
-  └─ Promise.all([fetchAllSignals(), fetchAllMacroSignals()])
-       ├─ fetchAllSignals()
-       │    └─ prefetchQuotes([...all ETF symbols]) → /api/finnhub
-       └─ fetchAllMacroSignals()
-            ├─ prefetchQuotes([VIXY,VIXM,UUP,IWM,SPY]) → /api/finnhub
-            └─ fetchFredSignals() → /api/fred
-  └─ fetchSynthesis(granvilleData, macroData) → /api/synthesis (non-blocking)
-```
-
-### `api/aggregate-geo-regime.js` (Ben Kim Geo Monitor aggregator)
-- GET/POST, auth `Authorization: Bearer <SNAPSHOT_SECRET>`; `?force=1` bypasses dedupe
-- Pulls geopolitical signals from worldmonitor.app public API (Hormuz tracker,
-  chokepoint status, shipping stress, theater posture, CII — all 31 Tier-1 countries)
-  + broad scan (added 2026-07-11): `list-cross-source-signals` (military surges, GPS
-  jamming, risk spikes) and `list-ucdp-events` reduced server-side to top-25 country
-  event/death counts + FRED (HY OAS, USD/JPY, WTI spot, VIX as market-pricing
-  cross-checks). Upstream `list-market-implications`/`get-regime-history` are
-  Pro-gated (401) — not usable. Broadening cost: ~9% prompt growth, ~13K tokens per
-  fresh call.
-- **worldmonitor API auth**: needs browser User-Agent (Cloudflare 403 otherwise) and a
-  `wms_` session token from `POST /api/wm-session` sent as `X-WorldMonitor-Key` for
-  `/v1` gateway endpoints (401 otherwise)
-- Calls 1min.ai claude-sonnet-4-6 with an edge-detector prompt (flag >30% unpriced
-  risks); strict-JSON verdict
-- Dedupe: material-state hash + `geo_regime_cache` Supabase row (3h TTL) — LLM only
-  re-called when chokepoint/CII/macro state materially changes (CII bucketed to 10pts
-  to avoid boundary jitter)
-- flagged=true → upsert `geopolitical_signals` (history trigger appends transitions);
-  `current_regime` VIEW is what the dashboard will eventually read as a gate/weight
-  on Granville timing rules (never an entry signal). Cross-repo wiring is a future step.
-- EVERY run (flagged or not) also inserts a labeled row into `geo_regime_runs`
-  (verdict jsonb + `categories_considered` + `categories_dismissed_reason` per
-  category) for later analysis of what precedes real market moves. Insert is
-  best-effort — failure surfaces as `runRecordError`, never drops the verdict.
-- **Private-project gotcha**: middleware.js password gate 401s any /api path not in
-  OPEN_PATHS *before* the function runs — new cron endpoints must be allowlisted
-  there (aggregate-geo-regime was added 2026-07-11 after the cron failed with 401).
-
-### Geo Regime Panel (WIP — scaffolded 2026-07-11, NOT shipped)
-
-This will eventually be dashboard section 7, **private project only** (same
-`VITE_SHOW_*` pattern as Alma) — a tab surfacing the regime state the aggregator
-above writes to Supabase. Currently in the **data-validation phase**: watching the
-aggregator's real output for a while before finishing the UI. Do not assume this
-tab exists in the deployed app — it does not.
-
-**Status**: scaffolded on local branch `wip/geo-regime-panel` (based on `main`,
-not merged, not pushed to origin — exists only in this local clone until someone
-decides to finish it). `main` / deployed `git log` will NOT show these files.
-
-**What's there** (on that branch):
-- `api/geo-regime.js` — read-only endpoint, same service-role Supabase pattern as
-  `api/alma.js`. Reads `current_regime`, all `geopolitical_signals`, and the 20
-  most recent `geo_regime_runs`. Tested against live data.
-- `src/lib/georegime.js` — client fetch wrapper mirroring `lib/alma.js`.
-- `src/components/GeoRegimePanel.jsx` — draft component styled after `AlmaPanel.jsx`.
-
-**Confirmed NOT wired**: nothing on `main` imports any of the three files above;
-`App.jsx` has no `GeoRegimePanel`/`fetchGeoRegime` reference. Re-verify with
-`grep -rln "GeoRegimePanel\|fetchGeoRegime" src/App.jsx` before assuming otherwise —
-this note will go stale the moment someone starts wiring it in.
-
-**Still to decide before shipping** (TODOs live inline in the component too):
-1. Field selection — `geopolitical_signals.notes` is often 1000+ chars of LLM
-   prose; `categories_dismissed_reason` (arguably the most useful part — a
-   labeled reason for every non-flagged category, every run) isn't surfaced at
-   all yet, just a count of the latest run's `categories_considered`.
-2. Fetch cadence — regime updates ~every 4h via cron; don't refetch on every
-   `App.jsx` `refresh()` the way Alma/synthesis do (wasted requests against
-   data that hasn't changed).
-3. Layout/styling — severity color thresholds are a first guess, untuned.
-4. Wiring — add `VITE_SHOW_GEO_REGIME` env flag, add state/effects in `App.jsx`
-   mirroring `almaData`/`almaLoading`/`almaError`, decide render position
-   relative to Alma/Vol Surface panels.
-
-To resume: `git checkout wip/geo-regime-panel` (or cherry-pick the 3 files onto
-a fresh branch off current `main`, since `main` will have moved on).
-- Cron: `.github/workflows/geo-regime-aggregator.yml` — every 4h + workflow_dispatch,
-  reuses the `SNAPSHOT_SECRET` GitHub secret
-- Supabase schema/grants SQL: `../geo-monitor-scaffold/*.sql` (all applied, incl. geo_regime_runs 2026-07-11)
-- Related: worldmonitor clone at `../worldmonitor` (branch `geo-variant`) has the
-  personal `geo` dashboard variant (`npm run dev:geo`); its Market Implications panel
-  reads `geopolitical_signals` via anon key in its `.env.local`
-
-## Known Limitations & Gotchas
-- **Finnhub free tier**: No CBOE indices (`^VIX`), no MOVE index. Use ETF proxies.
-- **FRED CORS**: Cannot call from browser. Must go through `/api/fred` serverless.
-- **Yahoo Finance 30-min data**: Only 60 days of intraday available on free tier.
-- **`vercel dev` on Windows**: Broken — Vite and Vercel fight over the same port. Use `local-api-server.mjs` instead.
-- **1min.ai rate limits**: Synthesis is cached 20 min to reduce API calls.
-
-## Planned Features
-- **Alma Centroid**: Gmail → Apps Script → Google Sheet pipeline for intraday pivot levels
-
-## Git / Deployment
-- Repo: `https://github.com/jusjit/granville-market-dashboard`
-- Branch: `main` (auto-deploys to Vercel)
-- `.env` is gitignored — never commit API keys
+## History note
+Original upstream: https://github.com/jusjit/granville-market-dashboard
+(no git remote to it anymore; `origin` = the GMERICA repo). Early commits in
+history mention Alma/Supabase/geo-regime — all deleted on 2026-07-11.
