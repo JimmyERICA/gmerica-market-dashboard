@@ -23,7 +23,11 @@ try {
 if (!process.env.FINNHUB_KEY) process.env.FINNHUB_KEY = process.env.VITE_FINNHUB_KEY
 if (!process.env.FRED_KEY) process.env.FRED_KEY = process.env.VITE_FRED_KEY
 
-const GEMINI_MODEL = 'gemini-flash-latest'
+// Tried in order; the lite model is the fallback when the main one is overloaded
+const GEMINI_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest']
+const RETRY_DELAYS_MS = [5_000, 15_000, 30_000]
+const REQUEST_TIMEOUT_MS = 45_000
+const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 
 // Route the client libs' relative /api/* fetches to the handlers in-process
 const apiHandlers = {
@@ -34,7 +38,7 @@ const apiHandlers = {
 const realFetch = globalThis.fetch
 globalThis.fetch = async (input, init) => {
   const urlStr = typeof input === 'string' ? input : input.url
-  if (!urlStr.startsWith('/api/')) return realFetch(input, init)
+  if (!urlStr.startsWith('/api/')) return realFetch(input, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), ...init })
   const url = new URL(urlStr, 'http://local')
   const load = apiHandlers[url.pathname]
   if (!load) return new Response(JSON.stringify({ error: 'not found' }), { status: 404 })
@@ -69,26 +73,53 @@ function buildPrompt(granvilleData, macroData) {
 async function callGemini(prompt) {
   const key = process.env.GEMINI_KEY
   if (!key) throw new Error('GEMINI_KEY not configured')
-  const r = await realFetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
-    method: 'POST',
-    headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-  })
-  if (!r.ok) throw new Error(`Gemini ${r.status}: ${(await r.text()).slice(0, 300)}`)
-  const data = await r.json()
-  const paragraph = (data?.candidates?.[0]?.content?.parts ?? [])
-    .map(p => p.text ?? '').join('').trim()
-  if (!paragraph) throw new Error(`Unexpected Gemini response: ${JSON.stringify(data).slice(0, 300)}`)
-  return paragraph
+  let lastError
+  for (const model of GEMINI_MODELS) {
+    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+      try {
+        const r = await realFetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: 'POST',
+          headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        })
+        if (!r.ok) {
+          const err = new Error(`Gemini ${model} ${r.status}: ${(await r.text()).slice(0, 300)}`)
+          // Overload (429/5xx) is worth retrying; anything else (bad key, bad request) is not
+          if (r.status !== 429 && r.status < 500) { err.permanent = true }
+          throw err
+        }
+        const data = await r.json()
+        const paragraph = (data?.candidates?.[0]?.content?.parts ?? [])
+          .map(p => p.text ?? '').join('').trim()
+        if (!paragraph) throw new Error(`Unexpected Gemini response from ${model}: ${JSON.stringify(data).slice(0, 300)}`)
+        return { paragraph, model }
+      } catch (err) {
+        if (err.permanent) throw err
+        lastError = err
+        console.warn(`Gemini attempt failed (${model}, try ${attempt + 1}): ${err.message}`)
+        if (attempt < RETRY_DELAYS_MS.length) await sleep(RETRY_DELAYS_MS[attempt])
+      }
+    }
+  }
+  throw lastError
 }
 
 const [granvilleData, macroData] = await Promise.all([fetchAllSignals(), fetchAllMacroSignals()])
-const paragraph = await callGemini(buildPrompt(granvilleData, macroData))
+
+// A summary built from broken inputs reads as a confident "everything is neutral".
+// Better to fail the run and keep the previous good summary on the site.
+const failedSignals = granvilleData.signals.filter(s => s.error)
+if (failedSignals.length >= 3) {
+  throw new Error(`${failedSignals.length} of ${granvilleData.signals.length} Granville signals failed to load (${failedSignals.map(s => s.id).join(', ')}) — not publishing a summary`)
+}
+
+const { paragraph, model } = await callGemini(buildPrompt(granvilleData, macroData))
 
 const out = {
   paragraph,
   compositeScore: granvilleData.compositeScore,
-  model: GEMINI_MODEL,
+  model,
   generatedAt: new Date().toISOString(),
 }
 writeFileSync(path.join(root, 'public', 'synthesis.json'), JSON.stringify(out, null, 2) + '\n')

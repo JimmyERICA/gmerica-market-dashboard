@@ -28,3 +28,7 @@ Alma backtest rules/alma_rules.json
 *.sln
 *.sw?
 .vercel
+
+# Never commit these — they hold account recovery codes / protected files
+vercelrecoverycodes/
+Vercel/
